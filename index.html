@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control Camisas PROMO 50 Psicología</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brandNavy: '#0F172A',
+            brandNavyDark: '#0A0F1D',
+            brandGold: '#D4AF37',
+            brandGoldHover: '#B89628',
+            brandGoldLight: '#F3E5AB'
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #0A0F1D;
+      color: #F8FAFC;
+    }
+    .gold-gradient {
+      background: linear-gradient(135deg, #BF953F 0%, #FCF6BA 25%, #B38728 50%, #FBF5B7 75%, #AA771C 100%);
+    }
+    .gold-text {
+      background: linear-gradient(135deg, #D4AF37 0%, #FFF8DC 50%, #AA771C 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(212, 175, 55, 0.2);
+    }
+  </style>
+
+  <!-- Firebase v11 Modular SDKs -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+    import { getAuth } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+    // Configuración Firebase
+    const firebaseConfig = {
+  apiKey: "AIzaSyCUvwdynaFx9lpBstmfU_vOL_kfrZ0wBa8",
+  authDomain: "controlcamisaspromo50.firebaseapp.com",
+  projectId: "controlcamisaspromo50",
+  storageBucket: "controlcamisaspromo50.firebasestorage.app",
+  messagingSenderId: "632659266065",
+  appId: "1:632659266065:web:e7c6ed0dea784b8fb23fb0"
+};
+
+    let app, auth, db;
+    let isFirebaseReady = false;
+    let graduatesData = [];
+
+    try {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+      isFirebaseReady = true;
+    } catch (e) {
+      console.warn("Firebase no configurado con llaves reales. Usando modo de almacenamiento local/memoria.");
+    }
+
+    const localStoreKey = "promo50_graduandos_data";
+
+    function getLocalData() {
+      const stored = localStorage.getItem(localStoreKey);
+      if (stored) return JSON.parse(stored);
+      return [
+        {
+          id: 'demo-1',
+          name: 'María Alejandra Pérez',
+          gradQuantity: 1,
+          gradPrice: 35,
+          gradSize: 'M',
+          addQuantity: 2,
+          addTotalAmount: 67.26,
+          addSize: 'L, S',
+          payments: [
+            { id: 'p1', date: '2026-10-15', method: 'Binance', ref: 'BN-8831', amount: 50 },
+            { id: 'p2', date: '2026-10-28', method: 'Efectivo ($)', ref: 'Recibo 01', amount: 30 }
+          ]
+        }
+      ];
+    }
+
+    function saveLocalData(data) {
+      localStorage.setItem(localStoreKey, JSON.stringify(data));
+      graduatesData = data;
+      renderApp();
+    }
+
+    window.loginUser = async function(e) {
+      if (e) e.preventDefault();
+      const usernameInput = document.getElementById('login-username').value.trim();
+      const passwordInput = document.getElementById('login-password').value;
+
+      if (usernameInput !== "promo50" || passwordInput !== "2027") {
+        alert("Usuario o contraseña incorrectos. Utiliza usuario: promo50 y clave: 2027");
+        return;
+      }
+
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('app-screen').classList.remove('hidden');
+      document.getElementById('display-username').innerText = usernameInput.toUpperCase();
+      
+      initDataStream();
+    };
+
+    window.logoutUser = function() {
+      document.getElementById('app-screen').classList.add('hidden');
+      document.getElementById('auth-screen').classList.remove('hidden');
+    };
+
+    function initDataStream() {
+      if (isFirebaseReady) {
+        try {
+          const colRef = collection(db, "graduandos");
+          onSnapshot(colRef, (snapshot) => {
+            graduatesData = [];
+            snapshot.forEach((doc) => {
+              graduatesData.push({ id: doc.id, ...doc.data() });
+            });
+            renderApp();
+          }, (err) => {
+            graduatesData = getLocalData();
+            renderApp();
+          });
+          return;
+        } catch (e) {}
+      }
+      graduatesData = getLocalData();
+      renderApp();
+    }
+
+    window.openAddGraduateModal = function() {
+      document.getElementById('modal-title').innerText = "Registrar Nuevo Graduando";
+      document.getElementById('form-graduate-id').value = "";
+      document.getElementById('form-name').value = "";
+      document.getElementById('form-grad-qty').value = "1";
+      document.getElementById('form-grad-price').value = "35";
+      document.getElementById('form-grad-size').value = "M";
+      document.getElementById('form-add-qty').value = "0";
+      document.getElementById('form-add-total-amount').value = "0.00";
+      document.getElementById('form-add-size').value = "";
+      document.getElementById('form-initial-payment').value = "0";
+      document.getElementById('form-initial-method').value = "Binance";
+      document.getElementById('form-initial-ref').value = "";
+      
+      document.getElementById('graduate-modal').classList.remove('hidden');
+    };
+
+    window.closeGraduateModal = function() {
+      document.getElementById('graduate-modal').classList.add('hidden');
+    };
+
+    window.saveGraduate = function(e) {
+      if (e) e.preventDefault();
+      const id = document.getElementById('form-graduate-id').value;
+      const name = document.getElementById('form-name').value.trim();
+      const gradQty = parseFloat(document.getElementById('form-grad-qty').value) || 0;
+      const gradPrice = parseFloat(document.getElementById('form-grad-price').value) || 0;
+      const gradSize = document.getElementById('form-grad-size').value.trim() || 'M';
+      
+      const addQty = parseFloat(document.getElementById('form-add-qty').value) || 0;
+      const addTotalAmount = parseFloat(document.getElementById('form-add-total-amount').value) || 0;
+      const addSize = document.getElementById('form-add-size').value.trim() || '-';
+
+      const initialPay = parseFloat(document.getElementById('form-initial-payment').value) || 0;
+      const initialMethod = document.getElementById('form-initial-method').value;
+      const initialRef = document.getElementById('form-initial-ref').value.trim();
+
+      if (!name) {
+        alert("El nombre del graduando es obligatorio.");
+        return;
+      }
+
+      let payments = [];
+      if (id) {
+        const existing = graduatesData.find(g => g.id === id);
+        if (existing) payments = existing.payments || [];
+      } else if (initialPay > 0) {
+        payments.push({
+          id: 'p-' + Date.now(),
+          date: new Date().toISOString().split('T')[0],
+          method: initialMethod,
+          ref: initialRef || 'Abono Inicial',
+          amount: initialPay
+        });
+      }
+
+      const graduateRecord = {
+        name,
+        gradQuantity: gradQty,
+        gradPrice,
+        gradSize,
+        addQuantity: addQty,
+        addTotalAmount,
+        addSize,
+        payments
+      };
+
+      if (id) {
+        const index = graduatesData.findIndex(g => g.id === id);
+        if (index !== -1) graduatesData[index] = { id, ...graduateRecord };
+      } else {
+        graduatesData.push({ id: 'local-' + Date.now(), ...graduateRecord });
+      }
+
+      saveLocalData(graduatesData);
+      window.closeGraduateModal();
+    };
+
+    window.editGraduate = function(id) {
+      const g = graduatesData.find(item => item.id === id);
+      if (!g) return;
+
+      document.getElementById('modal-title').innerText = "Editar Graduando";
+      document.getElementById('form-graduate-id').value = g.id;
+      document.getElementById('form-name').value = g.name;
+      document.getElementById('form-grad-qty').value = g.gradQuantity;
+      document.getElementById('form-grad-price').value = g.gradPrice;
+      document.getElementById('form-grad-size').value = g.gradSize;
+      document.getElementById('form-add-qty').value = g.addQuantity;
+      document.getElementById('form-add-total-amount').value = g.addTotalAmount || 0;
+      document.getElementById('form-add-size').value = g.addSize;
+      
+      document.getElementById('form-initial-payment').value = 0;
+      document.getElementById('graduate-modal').classList.remove('hidden');
+    };
+
+    window.deleteGraduate = function(id) {
+      if (confirm("¿Estás segura de eliminar a este graduando del registro?")) {
+        graduatesData = graduatesData.filter(g => g.id !== id);
+        saveLocalData(graduatesData);
+      }
+    };
+
+    let activeGraduateForPayment = null;
+
+    window.openPaymentsModal = function(id) {
+      activeGraduateForPayment = graduatesData.find(g => g.id === id);
+      if (!activeGraduateForPayment) return;
+
+      document.getElementById('payment-modal-name').innerText = activeGraduateForPayment.name;
+      renderPaymentHistory();
+      document.getElementById('payments-modal').classList.remove('hidden');
+    };
+
+    window.closePaymentsModal = function() {
+      document.getElementById('payments-modal').classList.add('hidden');
+      activeGraduateForPayment = null;
+    };
+
+    function renderPaymentHistory() {
+      if (!activeGraduateForPayment) return;
+
+      const totalCost = (activeGraduateForPayment.gradQuantity * activeGraduateForPayment.gradPrice) +
+                        (parseFloat(activeGraduateForPayment.addTotalAmount) || 0);
+      
+      const payments = activeGraduateForPayment.payments || [];
+      const totalPaid = payments.reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+      const pending = totalCost - totalPaid;
+
+      document.getElementById('pay-modal-total').innerText = `$${totalCost.toFixed(2)}`;
+      document.getElementById('pay-modal-paid').innerText = `$${totalPaid.toFixed(2)}`;
+      document.getElementById('pay-modal-pending').innerText = `$${Math.max(0, pending).toFixed(2)}`;
+
+      const listContainer = document.getElementById('payment-history-list');
+      if (payments.length === 0) {
+        listContainer.innerHTML = `<p class="text-gray-400 text-sm text-center py-4">No hay abonos registrados aún.</p>`;
+        return;
+      }
+
+      listContainer.innerHTML = payments.map(p => `
+        <div class="flex items-center justify-between p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+          <div>
+            <div class="font-semibold text-gold-text text-sm">$${parseFloat(p.amount).toFixed(2)}</div>
+            <div class="text-xs text-gray-400">${p.method} • Ref: ${p.ref || 'S/N'}</div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-gray-400">${p.date}</div>
+            <button onclick="window.deletePayment('${p.id}')" class="text-red-400 hover:text-red-300 text-xs mt-1">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    window.addPaymentRecord = function(e) {
+      if (e) e.preventDefault();
+      if (!activeGraduateForPayment) return;
+
+      const amount = parseFloat(document.getElementById('new-pay-amount').value) || 0;
+      const method = document.getElementById('new-pay-method').value;
+      const ref = document.getElementById('new-pay-ref').value.trim();
+      const date = document.getElementById('new-pay-date').value || new Date().toISOString().split('T')[0];
+
+      if (amount <= 0) {
+        alert("El monto del abono debe ser mayor a $0.");
+        return;
+      }
+
+      if (!activeGraduateForPayment.payments) activeGraduateForPayment.payments = [];
+      activeGraduateForPayment.payments.push({
+        id: 'p-' + Date.now(),
+        date,
+        method,
+        ref: ref || 'Abono',
+        amount
+      });
+
+      const idx = graduatesData.findIndex(g => g.id === activeGraduateForPayment.id);
+      if (idx !== -1) graduatesData[idx] = activeGraduateForPayment;
+
+      saveLocalData(graduatesData);
+      renderPaymentHistory();
+
+      document.getElementById('new-pay-amount').value = "";
+      document.getElementById('new-pay-ref').value = "";
+    };
+
+    window.deletePayment = function(paymentId) {
+      if (!activeGraduateForPayment) return;
+      activeGraduateForPayment.payments = activeGraduateForPayment.payments.filter(p => p.id !== paymentId);
+      
+      const idx = graduatesData.findIndex(g => g.id === activeGraduateForPayment.id);
+      if (idx !== -1) graduatesData[idx] = activeGraduateForPayment;
+
+      saveLocalData(graduatesData);
+      renderPaymentHistory();
+    };
+
+    window.copyWhatsAppReport = function() {
+      const TARGET_SHIRTS = 356;
+      const TARGET_MONEY = 11974.00;
+
+      let totalShirts = 0;
+      let totalCollected = 0;
+      let totalCostAll = 0;
+      let solventCount = 0;
+      let pendingCount = 0;
+
+      graduatesData.forEach(g => {
+        const shirts = (parseFloat(g.gradQuantity) || 0) + (parseFloat(g.addQuantity) || 0);
+        const cost = (g.gradQuantity * g.gradPrice) + (parseFloat(g.addTotalAmount) || 0);
+        const paid = (g.payments || []).reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+        
+        totalShirts += shirts;
+        totalCollected += paid;
+        totalCostAll += cost;
+
+        if ((cost - paid) <= 0) solventCount++;
+        else pendingCount++;
+      });
+
+      const totalPending = totalCostAll - totalCollected;
+      const moneyPercent = ((totalCollected / TARGET_MONEY) * 100).toFixed(1);
+      const shirtsPercent = ((totalShirts / TARGET_SHIRTS) * 100).toFixed(1);
+
+      let report = `👕 *REPORTE CAMISAS - PROMO 50 PSICOLOGÍA* 🎓\n\n`;
+      report += `💰 *Finanzas LanSan (Meta: $11,974)*\n`;
+      report += `• Total Recaudado: *$${totalCollected.toLocaleString('en-US', {minimumFractionDigits: 2})}* (${moneyPercent}%)\n`;
+      report += `• Pendiente Global: *$${Math.max(0, totalPending).toLocaleString('en-US', {minimumFractionDigits: 2})}*\n\n`;
+      
+      report += `📦 *Control de Camisas (Meta: 356)*\n`;
+      report += `• Registradas: *${totalShirts} / ${TARGET_SHIRTS}* (${shirtsPercent}%)\n\n`;
+      
+      report += `👥 *Estado de Graduandos*\n`;
+      report += `• Total Registrados: ${graduatesData.length}\n`;
+      report += `• Solventes: ${solventCount} ✅\n`;
+      report += `• Con Deuda: ${pendingCount} ⏳\n\n`;
+      report += `_Actualizado en tiempo real por el Comité._`;
+
+      navigator.clipboard.writeText(report).then(() => {
+        const popup = document.getElementById('whatsapp-popup');
+        popup.classList.remove('hidden');
+        setTimeout(() => {
+          popup.classList.add('hidden');
+        }, 3000);
+      }).catch(err => {
+        alert("No se pudo copiar automáticamente.");
+      });
+    };
+
+    function renderApp() {
+      const TARGET_SHIRTS = 356;
+      const TARGET_MONEY = 11974.00;
+
+      let totalShirtsOrdered = 0;
+      let totalCollected = 0;
+      let totalCostAllGraduates = 0;
+
+      const searchTerm = (document.getElementById('search-input')?.value || '').toLowerCase();
+      const filterStatus = document.getElementById('filter-status')?.value || 'ALL';
+
+      const grid = document.getElementById('graduates-grid');
+      if (!grid) return;
+
+      const filtered = graduatesData.filter(g => {
+        const matchesName = g.name.toLowerCase().includes(searchTerm);
+        const cost = (g.gradQuantity * g.gradPrice) + (parseFloat(g.addTotalAmount) || 0);
+        const paid = (g.payments || []).reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+        const pending = cost - paid;
+
+        if (filterStatus === 'SOLVENT') return matchesName && pending <= 0;
+        if (filterStatus === 'PENDING') return matchesName && pending > 0;
+        return matchesName;
+      });
+
+      graduatesData.forEach(g => {
+        const shirts = (parseFloat(g.gradQuantity) || 0) + (parseFloat(g.addQuantity) || 0);
+        const cost = (g.gradQuantity * g.gradPrice) + (parseFloat(g.addTotalAmount) || 0);
+        const paid = (g.payments || []).reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+
+        totalShirtsOrdered += shirts;
+        totalCollected += paid;
+        totalCostAllGraduates += cost;
+      });
+
+      const totalPendingGlobal = totalCostAllGraduates - totalCollected;
+
+      document.getElementById('stat-collected').innerText = `$${totalCollected.toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+      document.getElementById('stat-pending').innerText = `$${Math.max(0, totalPendingGlobal).toLocaleString('en-US', {minimumFractionDigits: 2})}`;
+      document.getElementById('stat-shirts').innerText = `${totalShirtsOrdered} / ${TARGET_SHIRTS}`;
+      
+      const moneyPercent = Math.min(100, (totalCollected / TARGET_MONEY) * 100);
+      const moneyRemaining = Math.max(0, TARGET_MONEY - totalCollected);
+      const shirtsPercent = Math.min(100, (totalShirtsOrdered / TARGET_SHIRTS) * 100);
+      const shirtsRemaining = Math.max(0, TARGET_SHIRTS - totalShirtsOrdered);
+
+      document.getElementById('bar-money-progress').style.width = `${moneyPercent}%`;
+      document.getElementById('text-money-progress').innerHTML = `${moneyPercent.toFixed(1)}% <span class="text-gray-400 font-normal">| Faltan: <strong class="text-brandGold">$${moneyRemaining.toLocaleString('en-US', {minimumFractionDigits: 2})}</strong></span>`;
+
+      document.getElementById('bar-shirts-progress').style.width = `${shirtsPercent}%`;
+      document.getElementById('text-shirts-progress').innerHTML = `${shirtsPercent.toFixed(1)}% <span class="text-gray-400 font-normal">| Faltan: <strong class="text-emerald-400">${shirtsRemaining} camisas</strong></span>`;
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="col-span-full text-center py-12 glass-card rounded-2xl">
+            <i class="fa-solid fa-graduation-cap text-4xl text-gray-500 mb-3"></i>
+            <p class="text-gray-400">No hay graduandos registrados que coincidan con la búsqueda.</p>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(g => {
+        const addTotal = parseFloat(g.addTotalAmount) || 0;
+        const totalCost = (g.gradQuantity * g.gradPrice) + addTotal;
+        const paid = (g.payments || []).reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+        const pending = totalCost - paid;
+        const isSolvent = pending <= 0;
+
+        return `
+          <div class="glass-card rounded-2xl p-5 relative flex flex-col justify-between hover:border-brandGold/40 transition-all">
+            <div>
+              <div class="flex items-start justify-between gap-2 mb-3">
+                <h3 class="font-bold text-lg text-white leading-snug">${g.name}</h3>
+                <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isSolvent ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}">
+                  ${isSolvent ? 'SOLVENTE' : 'DEUDA'}
+                </span>
+              </div>
+
+              <!-- Detalles Camisas -->
+              <div class="space-y-2 text-xs bg-slate-900/50 p-3 rounded-xl border border-slate-800 mb-4">
+                <div class="flex justify-between items-center">
+                  <span class="text-gray-400">Camisa Graduando (${g.gradSize || 'Talla ?'}):</span>
+                  <span class="font-semibold">${g.gradQuantity}x ($${(g.gradQuantity * g.gradPrice).toFixed(2)})</span>
+                </div>
+                ${g.addQuantity > 0 ? `
+                  <div class="flex justify-between items-center text-amber-300">
+                    <span class="text-gray-400">Camisas Adicionales (${g.addSize || '-'}):</span>
+                    <span class="font-semibold">${g.addQuantity}x ($${addTotal.toFixed(2)})</span>
+                  </div>
+                ` : ''}
+                <div class="border-t border-slate-700/60 pt-2 flex justify-between items-center font-bold text-sm">
+                  <span class="text-gray-300">Total Ficha:</span>
+                  <span class="text-brandGold">$${totalCost.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <!-- Resumen Financiero Claro -->
+              <div class="grid grid-cols-2 gap-2 mb-4 text-center">
+                <div class="bg-emerald-950/40 border border-emerald-800/40 p-2 rounded-xl">
+                  <div class="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Monto Pagado</div>
+                  <div class="text-base font-extrabold text-emerald-300">$${paid.toFixed(2)}</div>
+                </div>
+                <div class="${pending > 0 ? 'bg-amber-950/40 border border-amber-800/40' : 'bg-slate-800/40 border border-slate-700/40'} p-2 rounded-xl">
+                  <div class="text-[10px] uppercase font-bold ${pending > 0 ? 'text-amber-400' : 'text-gray-400'} tracking-wider">Pendiente</div>
+                  <div class="text-base font-extrabold ${pending > 0 ? 'text-amber-300' : 'text-gray-400'}">$${Math.max(0, pending).toFixed(2)}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="flex items-center gap-2 pt-2 border-t border-slate-800">
+              <button onclick="window.openPaymentsModal('${g.id}')" class="flex-1 bg-brandGold/10 hover:bg-brandGold/20 text-brandGold border border-brandGold/30 text-xs font-bold py-2 rounded-xl transition-all flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-receipt"></i> Abonos (${(g.payments || []).length})
+              </button>
+              <button onclick="window.editGraduate('${g.id}')" class="p-2 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-xl text-xs">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button onclick="window.deleteGraduate('${g.id}')" class="p-2 bg-slate-800 hover:bg-red-950/50 text-red-400 rounded-xl text-xs">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('search-input')?.addEventListener('input', renderApp);
+      document.getElementById('filter-status')?.addEventListener('change', renderApp);
+      renderApp();
+    });
+  </script>
+</head>
+<body class="min-h-screen pb-12">
+
+  <!-- POP-UP DE NOTIFICACIÓN DE COPIADO -->
+  <div id="whatsapp-popup" class="hidden fixed bottom-6 right-6 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl z-50 flex items-center gap-3 border border-emerald-400/40 animate-bounce">
+    <i class="fa-brands fa-whatsapp text-2xl"></i>
+    <div>
+      <div class="font-bold text-sm">¡Reporte copiado con éxito!</div>
+      <div class="text-[11px] text-emerald-100">Pégalo directamente en el grupo de WhatsApp.</div>
+    </div>
+  </div>
+
+  <!-- PANTALLA 1: INICIO DE SESIÓN -->
+  <div id="auth-screen" class="min-h-screen flex items-center justify-center p-4">
+    <div class="glass-card max-w-md w-full p-8 rounded-3xl border border-brandGold/30 shadow-2xl relative overflow-hidden">
+      <div class="absolute -top-12 -right-12 w-32 h-32 bg-brandGold/10 rounded-full blur-2xl"></div>
+      
+      <div class="text-center mb-8">
+        <div class="inline-flex p-3 rounded-2xl bg-brandGold/10 border border-brandGold/30 mb-3">
+          <i class="fa-solid fa-shirt text-3xl gold-text"></i>
+        </div>
+        <h1 class="text-2xl font-black text-white tracking-wide">PROMO 50 PSICOLOGÍA</h1>
+        <p class="text-xs text-brandGold font-semibold tracking-widest uppercase mt-1">Control de Camisas • LanSan</p>
+      </div>
+
+      <form onsubmit="window.loginUser(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-gray-300 uppercase mb-1">Usuario del Comité</label>
+          <div class="relative">
+            <i class="fa-solid fa-user absolute left-3.5 top-3 text-gray-500 text-sm"></i>
+            <input type="text" id="login-username" value="promo50" required placeholder="promo50" class="w-full bg-slate-900/80 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-brandGold">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-300 uppercase mb-1">Contraseña</label>
+          <div class="relative">
+            <i class="fa-solid fa-lock absolute left-3.5 top-3 text-gray-500 text-sm"></i>
+            <input type="password" id="login-password" value="2027" required placeholder="2027" class="w-full bg-slate-900/80 border border-slate-700 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-brandGold">
+          </div>
+        </div>
+
+        <button type="submit" class="w-full gold-gradient text-slate-950 font-black py-3 rounded-xl hover:opacity-90 transition-all text-sm shadow-lg shadow-brandGold/10 uppercase tracking-wider">
+          Ingresar al Panel
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- PANTALLA 2: APP PRINCIPAL -->
+  <div id="app-screen" class="hidden">
+    
+    <!-- Navbar -->
+    <header class="border-b border-slate-800 bg-slate-950/80 sticky top-0 z-40 backdrop-blur-md">
+      <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row items-center justify-between gap-3">
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+          <div class="flex items-center gap-3">
+            <div class="p-2 rounded-xl bg-brandGold/10 border border-brandGold/30">
+              <i class="fa-solid fa-shirt gold-text text-xl"></i>
+            </div>
+            <div>
+              <h1 class="font-black text-base md:text-lg text-white leading-tight">Control Camisas PROMO 50</h1>
+              <p class="text-[10px] text-brandGold font-bold uppercase">Psicología • LanSan</p>
+            </div>
+          </div>
+          <button onclick="window.logoutUser()" class="md:hidden p-2 text-gray-400 hover:text-red-400 rounded-xl text-sm">
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2.5 w-full md:w-auto justify-end flex-wrap">
+          <button onclick="window.copyWhatsAppReport()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs transition-all shadow-md flex items-center gap-1.5">
+            <i class="fa-brands fa-whatsapp text-sm"></i> Copiar Reporte WhatsApp
+          </button>
+          <button onclick="window.openAddGraduateModal()" class="gold-gradient text-slate-950 font-extrabold px-3.5 py-2 rounded-xl text-xs hover:opacity-90 transition-all shadow-md flex items-center gap-1.5">
+            <i class="fa-solid fa-plus"></i> Nuevo Graduando
+          </button>
+          <button onclick="window.logoutUser()" class="hidden md:block p-2 text-gray-400 hover:text-red-400 rounded-xl text-sm">
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 pt-6 space-y-6">
+      
+      <!-- DASHBOARD DE MÉTRICAS GENERALES -->
+      <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Recaudado -->
+        <div class="glass-card rounded-2xl p-5 border-l-4 border-l-emerald-500">
+          <div class="flex justify-between items-start mb-2">
+            <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Recaudado</span>
+            <i class="fa-solid fa-wallet text-emerald-400 text-lg"></i>
+          </div>
+          <div id="stat-collected" class="text-2xl font-black text-emerald-400">$0.00</div>
+          <p class="text-[11px] text-gray-400 mt-1">Acumulado en abonos de graduandos</p>
+        </div>
+
+        <!-- Pendiente Global -->
+        <div class="glass-card rounded-2xl p-5 border-l-4 border-l-amber-500">
+          <div class="flex justify-between items-start mb-2">
+            <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Pendiente por Cobrar</span>
+            <i class="fa-solid fa-hourglass-half text-amber-400 text-lg"></i>
+          </div>
+          <div id="stat-pending" class="text-2xl font-black text-amber-400">$0.00</div>
+          <p class="text-[11px] text-gray-400 mt-1">Faltante por cobrar en fichas</p>
+        </div>
+
+        <!-- Camisas Ordenadas -->
+        <div class="glass-card rounded-2xl p-5 border-l-4 border-l-brandGold">
+          <div class="flex justify-between items-start mb-2">
+            <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Camisas Registradas</span>
+            <i class="fa-solid fa-shirt gold-text text-lg"></i>
+          </div>
+          <div id="stat-shirts" class="text-2xl font-black text-white">0 / 356</div>
+          <p class="text-[11px] text-gray-400 mt-1">Objetivo total de la promoción</p>
+        </div>
+      </section>
+
+      <!-- BARRAS DE PROGRESO DE METAS -->
+      <section class="glass-card rounded-2xl p-6 space-y-5">
+        <h2 class="text-sm font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+          <i class="fa-solid fa-chart-line text-brandGold"></i> Progreso de Metas Promoción
+        </h2>
+
+        <!-- Meta Dinero -->
+        <div>
+          <div class="flex justify-between text-xs font-semibold mb-1.5 flex-wrap gap-1">
+            <span class="text-gray-300">Pago a Empresa LanSan (Meta: $11,974.00)</span>
+            <span id="text-money-progress" class="text-brandGold">0%</span>
+          </div>
+          <div class="w-full bg-slate-900 rounded-full h-3.5 border border-slate-800 overflow-hidden">
+            <div id="bar-money-progress" class="gold-gradient h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Meta Camisas -->
+        <div>
+          <div class="flex justify-between text-xs font-semibold mb-1.5 flex-wrap gap-1">
+            <span class="text-gray-300">Meta de Camisas (Objetivo: 356 camisas)</span>
+            <span id="text-shirts-progress" class="text-emerald-400">0%</span>
+          </div>
+          <div class="w-full bg-slate-900 rounded-full h-3.5 border border-slate-800 overflow-hidden">
+            <div id="bar-shirts-progress" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FILTROS Y CONTROLES -->
+      <section class="flex flex-col md:flex-row gap-3 justify-between items-center">
+        <div class="relative w-full md:w-80">
+          <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-gray-500 text-sm"></i>
+          <input type="text" id="search-input" placeholder="Buscar graduando por nombre..." class="w-full bg-slate-900 border border-slate-800 rounded-xl py-2 pl-10 pr-4 text-xs text-white focus:outline-none focus:border-brandGold">
+        </div>
+
+        <div class="flex items-center gap-2 w-full md:w-auto">
+          <select id="filter-status" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-brandGold">
+            <option value="ALL">Todos los Graduandos</option>
+            <option value="PENDING">Con Deuda Pendiente</option>
+            <option value="SOLVENT">Solventes (Pago Completo)</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- GRID DE GRADUANDOS -->
+      <section id="graduates-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Renderizado dinámico -->
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL: CREAR / EDITAR GRADUANDO -->
+  <div id="graduate-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="glass-card max-w-lg w-full rounded-3xl border border-brandGold/30 p-6 relative max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="modal-title" class="font-bold text-lg text-white">Registrar Graduando</h3>
+        <button onclick="window.closeGraduateModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <form onsubmit="window.saveGraduate(event)" class="space-y-4">
+        <input type="hidden" id="form-graduate-id">
+
+        <div>
+          <label class="block text-xs font-bold text-gray-300 uppercase mb-1">Nombre Completo del Graduando</label>
+          <input type="text" id="form-name" required placeholder="Ej. Ana Valentina Silva" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:border-brandGold focus:outline-none">
+        </div>
+
+        <!-- Camisa Graduando -->
+        <div class="p-3 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-3">
+          <div class="text-xs font-bold text-brandGold uppercase">Camisa Graduando</div>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="block text-[10px] text-gray-400">Cantidad</label>
+              <input type="number" id="form-grad-qty" value="1" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+            </div>
+            <div>
+              <label class="block text-[10px] text-gray-400">Precio Unit. ($)</label>
+              <input type="number" step="0.01" id="form-grad-price" value="35.00" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+            </div>
+            <div>
+              <label class="block text-[10px] text-gray-400">Talla</label>
+              <input type="text" id="form-grad-size" value="M" placeholder="S, M, L..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+            </div>
+          </div>
+        </div>
+
+        <!-- Camisas Adicionales (Monto Libre) -->
+        <div class="p-3 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-3">
+          <div class="text-xs font-bold text-amber-300 uppercase">Camisas Adicionales (Acompañantes)</div>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="block text-[10px] text-gray-400">Cantidad</label>
+              <input type="number" id="form-add-qty" value="0" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+            </div>
+            <div>
+              <label class="block text-[10px] text-gray-400">Monto Total ($)</label>
+              <input type="number" step="0.01" id="form-add-total-amount" value="0.00" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white" placeholder="Total en $">
+            </div>
+            <div>
+              <label class="block text-[10px] text-gray-400">Tallas</label>
+              <input type="text" id="form-add-size" placeholder="Ej. L, S" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+            </div>
+          </div>
+        </div>
+
+        <!-- Abono Inicial Opcional -->
+        <div class="p-3 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-3">
+          <div class="text-xs font-bold text-emerald-400 uppercase">Abono / Pago Inicial (Opcional)</div>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="block text-[10px] text-gray-400">Monto ($)</label>
+              <input type="number" step="0.01" id="form-initial-payment" value="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+            </div>
+            <div>
+              <label class="block text-[10px] text-gray-400">Método</label>
+              <select id="form-initial-method" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                <option value="Binance">Binance</option>
+                <option value="Efectivo ($)">Efectivo ($)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] text-gray-400">Referencia</label>
+              <input type="text" id="form-initial-ref" placeholder="Ref # / Comprobante" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="window.closeGraduateModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold text-gray-300">Cancelar</button>
+          <button type="submit" class="px-5 py-2 gold-gradient text-slate-950 font-black rounded-xl text-xs hover:opacity-90">Guardar Ficha</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: GESTIÓN DE ABONOS -->
+  <div id="payments-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="glass-card max-w-md w-full rounded-3xl border border-brandGold/30 p-6 relative max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="font-bold text-base text-white">Historial de Abonos</h3>
+        <button onclick="window.closePaymentsModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <p id="payment-modal-name" class="text-xs font-bold text-brandGold mb-4">Graduando</p>
+
+      <div class="grid grid-cols-3 gap-2 bg-slate-900 p-3 rounded-2xl border border-slate-800 text-center mb-4">
+        <div>
+          <div class="text-[9px] text-gray-400 uppercase font-bold">Total Ficha</div>
+          <div id="pay-modal-total" class="text-xs font-extrabold text-white">$0.00</div>
+        </div>
+        <div>
+          <div class="text-[9px] text-emerald-400 uppercase font-bold">Pagado</div>
+          <div id="pay-modal-paid" class="text-xs font-extrabold text-emerald-400">$0.00</div>
+        </div>
+        <div>
+          <div class="text-[9px] text-amber-400 uppercase font-bold">Pendiente</div>
+          <div id="pay-modal-pending" class="text-xs font-extrabold text-amber-400">$0.00</div>
+        </div>
+      </div>
+
+      <form onsubmit="window.addPaymentRecord(event)" class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800 space-y-3 mb-4">
+        <div class="text-xs font-bold text-gray-300">Registrar Nuevo Abono</div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[10px] text-gray-400">Monto ($)</label>
+            <input type="number" step="0.01" id="new-pay-amount" required placeholder="0.00" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+          </div>
+          <div>
+            <label class="block text-[10px] text-gray-400">Método de Pago</label>
+            <select id="new-pay-method" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+              <option value="Binance">Binance</option>
+              <option value="Efectivo ($)">Efectivo ($)</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[10px] text-gray-400">Referencia / Comprobante</label>
+            <input type="text" id="new-pay-ref" placeholder="Ej. BN-98123" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+          </div>
+          <div>
+            <label class="block text-[10px] text-gray-400">Fecha</label>
+            <input type="date" id="new-pay-date" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+          </div>
+        </div>
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition-all">
+          + Agregar Abono
+        </button>
+      </form>
+
+      <div class="space-y-2">
+        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Abonos Registrados</div>
+        <div id="payment-history-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+          <!-- Dinámico -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
