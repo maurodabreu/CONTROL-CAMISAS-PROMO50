@@ -53,17 +53,17 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
     import { getAuth } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
-    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
-    // Configuración Firebase
+    // Configuración Firebase Real
     const firebaseConfig = {
-  apiKey: "AIzaSyCUvwdynaFx9lpBstmfU_vOL_kfrZ0wBa8",
-  authDomain: "controlcamisaspromo50.firebaseapp.com",
-  projectId: "controlcamisaspromo50",
-  storageBucket: "controlcamisaspromo50.firebasestorage.app",
-  messagingSenderId: "632659266065",
-  appId: "1:632659266065:web:e7c6ed0dea784b8fb23fb0"
-};
+      apiKey: "AIzaSyCUvwdynaFx9lpBstmfU_vOL_kfrZ0wBa8",
+      authDomain: "controlcamisaspromo50.firebaseapp.com",
+      projectId: "controlcamisaspromo50",
+      storageBucket: "controlcamisaspromo50.firebasestorage.app",
+      messagingSenderId: "632659266065",
+      appId: "1:632659266065:web:e7c6ed0dea784b8fb23fb0"
+    };
 
     let app, auth, db;
     let isFirebaseReady = false;
@@ -75,7 +75,7 @@
       db = getFirestore(app);
       isFirebaseReady = true;
     } catch (e) {
-      console.warn("Firebase no configurado con llaves reales. Usando modo de almacenamiento local/memoria.");
+      console.warn("Firebase no configurado correctamente. Usando respaldo local.");
     }
 
     const localStoreKey = "promo50_graduandos_data";
@@ -101,7 +101,7 @@
       ];
     }
 
-    function saveLocalData(data) {
+    function saveLocalDataFallback(data) {
       localStorage.setItem(localStoreKey, JSON.stringify(data));
       graduatesData = data;
       renderApp();
@@ -119,7 +119,11 @@
 
       document.getElementById('auth-screen').classList.add('hidden');
       document.getElementById('app-screen').classList.remove('hidden');
-      document.getElementById('display-username').innerText = usernameInput.toUpperCase();
+      
+      const usernameDisplay = document.getElementById('display-username');
+      if(usernameDisplay) {
+        usernameDisplay.innerText = usernameInput.toUpperCase();
+      }
       
       initDataStream();
     };
@@ -130,21 +134,24 @@
     };
 
     function initDataStream() {
-      if (isFirebaseReady) {
+      if (isFirebaseReady && db) {
         try {
           const colRef = collection(db, "graduandos");
           onSnapshot(colRef, (snapshot) => {
             graduatesData = [];
-            snapshot.forEach((doc) => {
-              graduatesData.push({ id: doc.id, ...doc.data() });
+            snapshot.forEach((documentSnap) => {
+              graduatesData.push({ id: documentSnap.id, ...documentSnap.data() });
             });
             renderApp();
           }, (err) => {
+            console.error("Error en snapshot de Firestore:", err);
             graduatesData = getLocalData();
             renderApp();
           });
           return;
-        } catch (e) {}
+        } catch (e) {
+          console.warn("Excepción conectando Firestore:", e);
+        }
       }
       graduatesData = getLocalData();
       renderApp();
@@ -171,7 +178,7 @@
       document.getElementById('graduate-modal').classList.add('hidden');
     };
 
-    window.saveGraduate = function(e) {
+    window.saveGraduate = async function(e) {
       if (e) e.preventDefault();
       const id = document.getElementById('form-graduate-id').value;
       const name = document.getElementById('form-name').value.trim();
@@ -217,14 +224,28 @@
         payments
       };
 
+      if (isFirebaseReady && db) {
+        try {
+          if (id) {
+            await updateDoc(doc(db, "graduandos", id), graduateRecord);
+          } else {
+            await addDoc(collection(db, "graduandos"), graduateRecord);
+          }
+          window.closeGraduateModal();
+          return;
+        } catch (err) {
+          console.error("Error guardando en Firestore, usando respaldo local:", err);
+        }
+      }
+
+      // Respaldo local si no está conectado a Firestore
       if (id) {
         const index = graduatesData.findIndex(g => g.id === id);
         if (index !== -1) graduatesData[index] = { id, ...graduateRecord };
       } else {
         graduatesData.push({ id: 'local-' + Date.now(), ...graduateRecord });
       }
-
-      saveLocalData(graduatesData);
+      saveLocalDataFallback(graduatesData);
       window.closeGraduateModal();
     };
 
@@ -246,10 +267,18 @@
       document.getElementById('graduate-modal').classList.remove('hidden');
     };
 
-    window.deleteGraduate = function(id) {
+    window.deleteGraduate = async function(id) {
       if (confirm("¿Estás segura de eliminar a este graduando del registro?")) {
+        if (isFirebaseReady && db) {
+          try {
+            await deleteDoc(doc(db, "graduandos", id));
+            return;
+          } catch (err) {
+            console.error("Error eliminando en Firestore:", err);
+          }
+        }
         graduatesData = graduatesData.filter(g => g.id !== id);
-        saveLocalData(graduatesData);
+        saveLocalDataFallback(graduatesData);
       }
     };
 
@@ -305,7 +334,7 @@
       `).join('');
     }
 
-    window.addPaymentRecord = function(e) {
+    window.addPaymentRecord = async function(e) {
       if (e) e.preventDefault();
       if (!activeGraduateForPayment) return;
 
@@ -328,24 +357,50 @@
         amount
       });
 
+      if (isFirebaseReady && db) {
+        try {
+          await updateDoc(doc(db, "graduandos", activeGraduateForPayment.id), {
+            payments: activeGraduateForPayment.payments
+          });
+          document.getElementById('new-pay-amount').value = "";
+          document.getElementById('new-pay-ref').value = "";
+          renderPaymentHistory();
+          return;
+        } catch (err) {
+          console.error("Error guardando abono en Firestore:", err);
+        }
+      }
+
       const idx = graduatesData.findIndex(g => g.id === activeGraduateForPayment.id);
       if (idx !== -1) graduatesData[idx] = activeGraduateForPayment;
 
-      saveLocalData(graduatesData);
+      saveLocalDataFallback(graduatesData);
       renderPaymentHistory();
 
       document.getElementById('new-pay-amount').value = "";
       document.getElementById('new-pay-ref').value = "";
     };
 
-    window.deletePayment = function(paymentId) {
+    window.deletePayment = async function(paymentId) {
       if (!activeGraduateForPayment) return;
       activeGraduateForPayment.payments = activeGraduateForPayment.payments.filter(p => p.id !== paymentId);
       
+      if (isFirebaseReady && db) {
+        try {
+          await updateDoc(doc(db, "graduandos", activeGraduateForPayment.id), {
+            payments: activeGraduateForPayment.payments
+          });
+          renderPaymentHistory();
+          return;
+        } catch (err) {
+          console.error("Error eliminando abono en Firestore:", err);
+        }
+      }
+
       const idx = graduatesData.findIndex(g => g.id === activeGraduateForPayment.id);
       if (idx !== -1) graduatesData[idx] = activeGraduateForPayment;
 
-      saveLocalData(graduatesData);
+      saveLocalDataFallback(graduatesData);
       renderPaymentHistory();
     };
 
@@ -416,7 +471,7 @@
       if (!grid) return;
 
       const filtered = graduatesData.filter(g => {
-        const matchesName = g.name.toLowerCase().includes(searchTerm);
+        const matchesName = (g.name || '').toLowerCase().includes(searchTerm);
         const cost = (g.gradQuantity * g.gradPrice) + (parseFloat(g.addTotalAmount) || 0);
         const paid = (g.payments || []).reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
         const pending = cost - paid;
@@ -596,7 +651,7 @@
             </div>
             <div>
               <h1 class="font-black text-base md:text-lg text-white leading-tight">Control Camisas PROMO 50</h1>
-              <p class="text-[10px] text-brandGold font-bold uppercase">Psicología • LanSan</p>
+              <p class="text-[10px] text-brandGold font-bold uppercase">Psicología • LanSan | <span id="display-username" class="text-gray-300">PROMO50</span></p>
             </div>
           </div>
           <button onclick="window.logoutUser()" class="md:hidden p-2 text-gray-400 hover:text-red-400 rounded-xl text-sm">
@@ -698,131 +753,144 @@
         </div>
       </section>
 
-      <!-- GRID DE GRADUANDOS -->
+      <!-- GRILLA DE GRADUANDOS -->
       <section id="graduates-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <!-- Renderizado dinámico -->
       </section>
     </main>
   </div>
 
-  <!-- MODAL: CREAR / EDITAR GRADUANDO -->
-  <div id="graduate-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="glass-card max-w-lg w-full rounded-3xl border border-brandGold/30 p-6 relative max-h-[90vh] overflow-y-auto">
-      <div class="flex justify-between items-center mb-4">
-        <h3 id="modal-title" class="font-bold text-lg text-white">Registrar Graduando</h3>
-        <button onclick="window.closeGraduateModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+  <!-- MODAL: REGISTRAR / EDITAR GRADUANDO -->
+  <div id="graduate-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="glass-card max-w-lg w-full p-6 rounded-3xl border border-brandGold/30 shadow-2xl relative my-8">
+      <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+        <h3 id="modal-title" class="font-bold text-base text-white">Registrar Nuevo Graduando</h3>
+        <button onclick="window.closeGraduateModal()" class="text-gray-400 hover:text-white text-sm">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
       </div>
 
       <form onsubmit="window.saveGraduate(event)" class="space-y-4">
         <input type="hidden" id="form-graduate-id">
 
         <div>
-          <label class="block text-xs font-bold text-gray-300 uppercase mb-1">Nombre Completo del Graduando</label>
-          <input type="text" id="form-name" required placeholder="Ej. Ana Valentina Silva" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:border-brandGold focus:outline-none">
+          <label class="block text-xs font-bold text-gray-300 uppercase mb-1">Nombre Completo del Graduando *</label>
+          <input type="text" id="form-name" required placeholder="Ej. María Pérez" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-brandGold">
         </div>
 
-        <!-- Camisa Graduando -->
-        <div class="p-3 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-3">
-          <div class="text-xs font-bold text-brandGold uppercase">Camisa Graduando</div>
-          <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-gray-300 uppercase mb-1">Cant. Camisas</label>
+            <input type="number" id="form-grad-qty" min="1" value="1" required class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-brandGold">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-300 uppercase mb-1">Precio Unit. ($)</label>
+            <input type="number" id="form-grad-price" step="0.01" value="35" required class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-brandGold">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-300 uppercase mb-1">Talla Principal</label>
+            <input type="text" id="form-grad-size" value="M" required class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-brandGold">
+          </div>
+        </div>
+
+        <!-- Camisas Adicionales -->
+        <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-3">
+          <div class="text-xs font-bold text-brandGold uppercase">Camisas Adicionales (Opcional)</div>
+          <div class="grid grid-cols-3 gap-3">
             <div>
-              <label class="block text-[10px] text-gray-400">Cantidad</label>
-              <input type="number" id="form-grad-qty" value="1" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+              <label class="block text-[10px] text-gray-400 uppercase mb-1">Cant. Adicionales</label>
+              <input type="number" id="form-add-qty" min="0" value="0" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-brandGold">
             </div>
             <div>
-              <label class="block text-[10px] text-gray-400">Precio Unit. ($)</label>
-              <input type="number" step="0.01" id="form-grad-price" value="35.00" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+              <label class="block text-[10px] text-gray-400 uppercase mb-1">Monto Total ($)</label>
+              <input type="number" id="form-add-total-amount" step="0.01" min="0" value="0.00" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-brandGold">
             </div>
             <div>
-              <label class="block text-[10px] text-gray-400">Talla</label>
-              <input type="text" id="form-grad-size" value="M" placeholder="S, M, L..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+              <label class="block text-[10px] text-gray-400 uppercase mb-1">Tallas Adicionales</label>
+              <input type="text" id="form-add-size" placeholder="Ej. L, S" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-brandGold">
             </div>
           </div>
         </div>
 
-        <!-- Camisas Adicionales (Monto Libre) -->
-        <div class="p-3 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-3">
-          <div class="text-xs font-bold text-amber-300 uppercase">Camisas Adicionales (Acompañantes)</div>
-          <div class="grid grid-cols-3 gap-2">
+        <!-- Abono Inicial -->
+        <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-3">
+          <div class="text-xs font-bold text-emerald-400 uppercase">Abono Inicial (Opcional)</div>
+          <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-[10px] text-gray-400">Cantidad</label>
-              <input type="number" id="form-add-qty" value="0" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+              <label class="block text-[10px] text-gray-400 uppercase mb-1">Monto Abono ($)</label>
+              <input type="number" id="form-initial-payment" step="0.01" min="0" value="0" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-brandGold">
             </div>
             <div>
-              <label class="block text-[10px] text-gray-400">Monto Total ($)</label>
-              <input type="number" step="0.01" id="form-add-total-amount" value="0.00" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white" placeholder="Total en $">
-            </div>
-            <div>
-              <label class="block text-[10px] text-gray-400">Tallas</label>
-              <input type="text" id="form-add-size" placeholder="Ej. L, S" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
-            </div>
-          </div>
-        </div>
-
-        <!-- Abono Inicial Opcional -->
-        <div class="p-3 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-3">
-          <div class="text-xs font-bold text-emerald-400 uppercase">Abono / Pago Inicial (Opcional)</div>
-          <div class="grid grid-cols-3 gap-2">
-            <div>
-              <label class="block text-[10px] text-gray-400">Monto ($)</label>
-              <input type="number" step="0.01" id="form-initial-payment" value="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
-            </div>
-            <div>
-              <label class="block text-[10px] text-gray-400">Método</label>
-              <select id="form-initial-method" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+              <label class="block text-[10px] text-gray-400 uppercase mb-1">Método de Pago</label>
+              <select id="form-initial-method" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-brandGold">
                 <option value="Binance">Binance</option>
                 <option value="Efectivo ($)">Efectivo ($)</option>
               </select>
             </div>
-            <div>
-              <label class="block text-[10px] text-gray-400">Referencia</label>
-              <input type="text" id="form-initial-ref" placeholder="Ref # / Comprobante" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
-            </div>
+          </div>
+          <div>
+            <label class="block text-[10px] text-gray-400 uppercase mb-1">Referencia o Nota del Pago</label>
+            <input type="text" id="form-initial-ref" placeholder="Ej. TxID o recibo" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-brandGold">
           </div>
         </div>
 
-        <div class="flex justify-end gap-2 pt-2">
-          <button type="button" onclick="window.closeGraduateModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-bold text-gray-300">Cancelar</button>
-          <button type="submit" class="px-5 py-2 gold-gradient text-slate-950 font-black rounded-xl text-xs hover:opacity-90">Guardar Ficha</button>
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="window.closeGraduateModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-gray-300 font-bold py-2.5 rounded-xl text-xs">
+            Cancelar
+          </button>
+          <button type="submit" class="flex-1 gold-gradient text-slate-950 font-black py-2.5 rounded-xl text-xs shadow-lg uppercase">
+            Guardar Ficha
+          </button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- MODAL: GESTIÓN DE ABONOS -->
-  <div id="payments-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="glass-card max-w-md w-full rounded-3xl border border-brandGold/30 p-6 relative max-h-[90vh] overflow-y-auto">
-      <div class="flex justify-between items-center mb-2">
-        <h3 class="font-bold text-base text-white">Historial de Abonos</h3>
-        <button onclick="window.closePaymentsModal()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
-      </div>
-      <p id="payment-modal-name" class="text-xs font-bold text-brandGold mb-4">Graduando</p>
-
-      <div class="grid grid-cols-3 gap-2 bg-slate-900 p-3 rounded-2xl border border-slate-800 text-center mb-4">
+  <!-- MODAL: HISTORIAL DE ABONOS -->
+  <div id="payments-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="glass-card max-w-md w-full p-6 rounded-3xl border border-brandGold/30 shadow-2xl relative my-8">
+      <div class="flex justify-between items-center mb-3 pb-3 border-b border-slate-800">
         <div>
-          <div class="text-[9px] text-gray-400 uppercase font-bold">Total Ficha</div>
-          <div id="pay-modal-total" class="text-xs font-extrabold text-white">$0.00</div>
+          <h3 class="font-bold text-base text-white">Historial de Abonos</h3>
+          <p id="payment-modal-name" class="text-xs text-brandGold font-semibold">Nombre del Graduando</p>
         </div>
-        <div>
-          <div class="text-[9px] text-emerald-400 uppercase font-bold">Pagado</div>
-          <div id="pay-modal-paid" class="text-xs font-extrabold text-emerald-400">$0.00</div>
-        </div>
-        <div>
-          <div class="text-[9px] text-amber-400 uppercase font-bold">Pendiente</div>
-          <div id="pay-modal-pending" class="text-xs font-extrabold text-amber-400">$0.00</div>
-        </div>
+        <button onclick="window.closePaymentsModal()" class="text-gray-400 hover:text-white text-sm">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
       </div>
 
-      <form onsubmit="window.addPaymentRecord(event)" class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800 space-y-3 mb-4">
-        <div class="text-xs font-bold text-gray-300">Registrar Nuevo Abono</div>
+      <!-- Resumen Ficha -->
+      <div class="grid grid-cols-3 gap-2 mb-4 text-center text-xs bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+        <div>
+          <div class="text-[10px] text-gray-400 uppercase font-bold">Total Ficha</div>
+          <div id="pay-modal-total" class="font-bold text-white text-sm">$0.00</div>
+        </div>
+        <div>
+          <div class="text-[10px] text-emerald-400 uppercase font-bold">Pagado</div>
+          <div id="pay-modal-paid" class="font-bold text-emerald-400 text-sm">$0.00</div>
+        </div>
+        <div>
+          <div class="text-[10px] text-amber-400 uppercase font-bold">Pendiente</div>
+          <div id="pay-modal-pending" class="font-bold text-amber-400 text-sm">$0.00</div>
+        </div>
+      </div>
+
+      <!-- Lista de Abonos -->
+      <div id="payment-history-list" class="space-y-2 max-h-48 overflow-y-auto mb-4 pr-1">
+        <!-- Render dinámico -->
+      </div>
+
+      <!-- Formulario Nuevo Abono -->
+      <form onsubmit="window.addPaymentRecord(event)" class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-3">
+        <div class="text-xs font-bold text-brandGold uppercase">Registrar Nuevo Abono</div>
         <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="block text-[10px] text-gray-400">Monto ($)</label>
-            <input type="number" step="0.01" id="new-pay-amount" required placeholder="0.00" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+            <label class="block text-[10px] text-gray-400 uppercase mb-1">Monto ($) *</label>
+            <input type="number" id="new-pay-amount" step="0.01" min="0.01" required placeholder="0.00" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-1.5 px-2.5 text-xs text-white focus:outline-none focus:border-brandGold">
           </div>
           <div>
-            <label class="block text-[10px] text-gray-400">Método de Pago</label>
-            <select id="new-pay-method" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+            <label class="block text-[10px] text-gray-400 uppercase mb-1">Método</label>
+            <select id="new-pay-method" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-1.5 px-2.5 text-xs text-white focus:outline-none focus:border-brandGold">
               <option value="Binance">Binance</option>
               <option value="Efectivo ($)">Efectivo ($)</option>
             </select>
@@ -830,25 +898,18 @@
         </div>
         <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="block text-[10px] text-gray-400">Referencia / Comprobante</label>
-            <input type="text" id="new-pay-ref" placeholder="Ej. BN-98123" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+            <label class="block text-[10px] text-gray-400 uppercase mb-1">Referencia</label>
+            <input type="text" id="new-pay-ref" placeholder="Ej. TxID" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-1.5 px-2.5 text-xs text-white focus:outline-none focus:border-brandGold">
           </div>
           <div>
-            <label class="block text-[10px] text-gray-400">Fecha</label>
-            <input type="date" id="new-pay-date" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white">
+            <label class="block text-[10px] text-gray-400 uppercase mb-1">Fecha</label>
+            <input type="date" id="new-pay-date" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-1.5 px-2.5 text-xs text-white focus:outline-none focus:border-brandGold">
           </div>
         </div>
-        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition-all">
-          + Agregar Abono
+        <button type="submit" class="w-full gold-gradient text-slate-950 font-black py-2 rounded-xl text-xs uppercase tracking-wider shadow-md">
+          Añadir Abono
         </button>
       </form>
-
-      <div class="space-y-2">
-        <div class="text-xs font-bold text-gray-400 uppercase tracking-wider">Abonos Registrados</div>
-        <div id="payment-history-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
-          <!-- Dinámico -->
-        </div>
-      </div>
     </div>
   </div>
 
